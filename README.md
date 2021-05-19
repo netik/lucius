@@ -21,3 +21,20 @@ Can't make any calls? Let Lucius deal with it for youl
 
 Lucius will keep trying until someone picks up.
 
+## Starting
+
+This thing runs under venv, start with
+
+```
+source venv/bin/activate
+python manage.py runserver  
+python manage.py migrate --run-syncdb
+python manage.py createsuperuser
+```
+
+This helps...
+```
+python manage.py migrate --run-syncdb
+```
+
+

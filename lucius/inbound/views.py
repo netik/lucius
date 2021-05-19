@@ -10,6 +10,8 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from twilio.twiml.voice_response import VoiceResponse
 
+from twilio.twiml.messaging_response import MessagingResponse
+
 @csrf_exempt
 def answer(request: HttpRequest) -> HttpResponse:
   vr = VoiceResponse()
@@ -28,6 +30,23 @@ def answer(request: HttpRequest) -> HttpResponse:
   vr.redirect('')
 
   return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+def sms_response(request):
+  # Start our TwiML response
+  resp = MessagingResponse()
+
+  # Add a text message
+  #msg = resp.message("Check out this sweet owl!")
+
+  # Add a picture message
+  #msg.media("https://demo.twilio.com/owl.png")
+
+  # cmds:
+  #   "reset password"
+  
+  msg = "Lucius got that."
+  return HttpResponse(str(resp))
 
 @csrf_exempt
 def login(request: HttpRequest) -> HttpResponse:
@@ -71,7 +90,7 @@ def main_menu(request: HttpRequest) -> HttpResponse:
       action=reverse('main_menu_select'),
       input='dtmf speech',
       speechTimeout='auto',
-      timeout=s,
+      timeout=10
   ) as gather:
       gather.say('Choose now')
 
