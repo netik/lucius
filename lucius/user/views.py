@@ -23,13 +23,13 @@ def register(request):
             username = form.cleaned_data.get('username')
             email = form.cleaned_data.get('email')
             ######################### mail system ####################################
-            htmly = get_template('user/Email.html')
-            d = { 'username': username }
-            subject, from_email, to = 'welcome', 'your_email@gmail.com', email
-            html_content = htmly.render(d)
-            msg = EmailMultiAlternatives(subject, html_content, from_email, [to])
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
+            #htmly = get_template('user/Email.html')
+            #d = { 'username': username }
+            #subject, from_email, to = 'welcome', 'your_email@gmail.com', email
+            #html_content = htmly.render(d)
+            #msg = EmailMultiAlternatives(subject, html_content, from_email, [to])
+            #msg.attach_alternative(html_content, "text/html")
+            #msg.send()
             ##################################################################
             messages.success(request, f'Your account has been created ! You are now able to log in')
             return redirect('login')
@@ -48,7 +48,7 @@ def Login(request):
         user = authenticate(request, username = username, password = password)
         if user is not None:
             form = login(request, user)
-            messages.success(request, f' wecome {username} !!')
+            messages.success(request, f' Welcome {username} !!')
             return redirect('index')
         else:
             messages.info(request, f'account done not exit plz sign in')
