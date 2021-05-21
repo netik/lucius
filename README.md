@@ -77,4 +77,20 @@ The ngrok.io address should match whatever ngrok has assigned to you.
 
 Do not worry about any of the other settings for now.
 
+## 4. Simple Tests
+
+Going to `https://XXX.ngrok.io/` should get you to the login page if all is working correctly, and `https://XXX.ngrok.io/inbound/answer` should get you the 1st page of TwiML, for the voice IVR. That page should come back something like:
+
+```
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
+<Response>
+<Say>I am Lucius. Here to help.</Say>
+<Gather action="/login/" input="dtmf speech" speechTimeout="auto" timeout="10">
+<Say>Please enter or say your PIN</Say>
+</Gather>
+<Say>I did not receive your selection. Try Again.</Say>
+<Pause length="1"/>
+<Redirect/>
+</Response>
+```
 
