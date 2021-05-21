@@ -82,7 +82,6 @@ Do not worry about any of the other settings for now.
 Going to `https://XXX.ngrok.io/` should get you to the login page if all is working correctly, and `https://XXX.ngrok.io/inbound/answer` should get you the 1st page of TwiML, for the voice IVR. That page should come back something like:
 
 ```
-This XML file does not appear to have any style information associated with it. The document tree is shown below.
 <Response>
 <Say>I am Lucius. Here to help.</Say>
 <Gather action="/login/" input="dtmf speech" speechTimeout="auto" timeout="10">
@@ -94,3 +93,8 @@ This XML file does not appear to have any style information associated with it. 
 </Response>
 ```
 
+# Security
+
+In a production site you should enable `SECURE_SSL_REDIRECT = True` in settings.py and force users to use HTTPS. Enabling this with ngrok creates an infinite 301 redirect loop. 
+
+Unforunately when using ngrok trying to have HTTPS redirects working is very hard right now, I haven't figured this out (yet) and will come up with a solution at some point.
