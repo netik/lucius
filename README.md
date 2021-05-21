@@ -44,6 +44,8 @@ python manage.py createsuperuser
 python manage.py runserver  
 ```
 
+If you need to get out of the virtual environment, type `deactivate` or just close the Terminal window.
+
 ## 2. Set up a tunnel to Twilio with Ngrok
 
 In another window, let's get ngrok running.
