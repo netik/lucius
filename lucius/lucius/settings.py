@@ -136,3 +136,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
+SESSION_SAVE_EVERY_REQUEST = True
+
+USE_TZ="America/Los_Angeles"

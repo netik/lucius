@@ -3,10 +3,6 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-# Create your models here.
-
-# Inventing is what makes me happy... 
-
 # A user has a name, account ID, and a pin.
 class Profile(models.Model):
     class Plan(models.IntegerChoices):
@@ -22,23 +18,32 @@ class Profile(models.Model):
     duress_code = models.CharField(max_length=10)
 
     in_emergency = models.BooleanField(default=False)
-    emergency_msg = models.CharField(max_length=255)
+    emergency_msg = models.CharField(max_length=4096, default='I am in trouble and I need assistance. Please contact me ASAP.')
 
     # kitestring calls this 'Perennial mode'
     continual_monitoring = models.BooleanField(default=False)
 
-    last_check_in = models.DateTimeField(null=True)
-    checked_in_until = models.DateTimeField(null=True)
-    emergency_started = models.DateTimeField(null=True)
+    last_check_in = models.DateTimeField(null=True, blank=True)
+    checked_in_until = models.DateTimeField(null=True, blank=True)
+    emergency_started = models.DateTimeField(null=True, blank=True)
 
 # A user has multiple contacts.
-# Contact has a name and number and an emergency bit
+# A Contact has a name and number and an emergency bit and some details
+# about how to contact them.
 class Contact(models.Model):
-    owner = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=30)
     phone = models.CharField(max_length=20)
-    emergency_contact = models.BooleanField(default=True)
+    sms_capable = models.BooleanField(default=True)
 
+    # if true, we'll call you when the user is in emergency.
+    emergency_contact = models.BooleanField(default=True)
+    last_voice = models.DateTimeField(null=True, blank=True)
+    last_sms = models.DateTimeField(null=True, blank=True)
+    # an acknowledgement of any kind will stop the contact train.
+    last_ack = models.DateTimeField(null=True, blank=True)
+    retry_interval = models.IntegerField(default=60) # minutes
+    
 # handle save/create signals to extend profile
 @receiver(post_save, sender=User) 
 def create_user_profile(sender, instance, created, **kwargs):

@@ -2,17 +2,15 @@
 {% load crispy_forms_tags %}
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="title" content="project">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="language" content="English">
-  <meta name="author" content="vinayak sharma">
+  <meta name="author" content="jna">
 
   <title>{{title}}</title>
-
 
   <!-- bootstrap file -->
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
@@ -25,10 +23,8 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 
-
   <!-- main css -->
   <link rel="stylesheet" type="text/css" href="{% static "index.css" %}" />
-
 
   <!-- message here -->
 
@@ -44,15 +40,10 @@
 
   <!--_______________________________________________-->
 
-
-
 </head>
 
 <body class="container-fluid">
-
-
   <header class="row">
-
     <!-- navbar-->
     <nav class="navbar navbar-inverse navbar-fixed-top">
       <div class="container-fluid">
@@ -63,7 +54,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" class="styleheader" href="{% url "index" %}">project</a>
+          <a class="navbar-brand" class="styleheader" href="{% url "index" %}">Luicus</a>
         </div>
         <div class="collapse navbar-collapse" id="mainNavBar">
           <ul class="nav navbar-nav navbar-right">
@@ -87,12 +78,11 @@
   <div class="row">
     {% block start %}
     {% if user.is_authenticated %}
-    <center><h1>welcome, here</h1></center>
+    <center><h1>I am Lucius. Welcome, {{ user.get_username }}</h1></center>
     {% else %}
-    <center><h1>log in, plz . . .</h1></center>
+    <center><h1>Please log in or sign up to continue.</h1></center>
     {% endif %}
     {% endblock %}
   </div>
 </body>
-
 </html>
