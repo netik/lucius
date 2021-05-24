@@ -22,10 +22,15 @@ class Profile(models.Model):
 
     # kitestring calls this 'Perennial mode'
     continual_monitoring = models.BooleanField(default=False)
+    check_interval = models.IntegerField(default=4 * 60)
 
     last_check_in = models.DateTimeField(null=True, blank=True)
     checked_in_until = models.DateTimeField(null=True, blank=True)
     emergency_started = models.DateTimeField(null=True, blank=True)
+
+    message_sid = models.CharField(max_length=255, null=True, blank=True)
+    message_url = models.CharField(max_length=255, null=True, blank=True)
+    message_transcribe = models.CharField(max_length=2048, null=True, blank=True)
 
 # A user has multiple contacts.
 # A Contact has a name and number and an emergency bit and some details

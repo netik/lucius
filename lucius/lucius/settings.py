@@ -139,3 +139,6 @@ CRISPY_TEMPLATE_PACK = 'bootstrap4'
 SESSION_SAVE_EVERY_REQUEST = True
 
 USE_TZ="America/Los_Angeles"
+
+# for @login_required
+LOGIN_URL="/inbound/answer"

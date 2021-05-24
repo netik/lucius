@@ -10,6 +10,8 @@ from django.utils import timezone, dateformat
 from django.http import HttpRequest, HttpResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+
 from twilio.twiml.voice_response import VoiceResponse
 
 from .models import Profile
@@ -18,6 +20,10 @@ from django.core.exceptions import ObjectDoesNotExist
 MAX_BAD_LOGINS=3
 
 LONG_DATE_FMT="%a, %B %d, %Y %I:%M %p"
+
+# make this "dtmf speech" if you want to pay for speech recognition, it's
+# expensive at 0.02 USD / second
+ACCEPTED_TEL_INPUTS="dtmf"
 
 # utility functions go here --------------------------------------------
 def parse_digits_or_speech(digits, speech):
@@ -53,6 +59,7 @@ def check_in(profile):
   profile.in_emergency = False
   profile.emergency_started = None
   profile.last_check_in = timezone.now()
+  profile.checked_in_until = timezone.now() + timezone.timedelta(minutes=profile.check_interval)
   profile.save()
 
 def set_emergency(profile, state):
@@ -84,7 +91,7 @@ def answer(request: HttpRequest) -> HttpResponse:
   # A pin by itself is just insecure
   with vr.gather(
       action=reverse('pin_login'),
-      input='dtmf speech',
+      input=ACCEPTED_TEL_INPUTS,
       speechTimeout='auto',
       timeout=10,
   ) as gather:
@@ -95,6 +102,89 @@ def answer(request: HttpRequest) -> HttpResponse:
   vr.redirect('')
 
   return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+@login_required
+def start_set_check_interval(request: HttpRequest, vr=None) -> HttpResponse:
+  # we're either getting called after a bad entry and reusing vr, or we're a
+  # fresh request
+  if not vr:
+    vr = VoiceResponse()
+
+  with vr.gather(
+      action=reverse('set_check_interval'),
+      input=ACCEPTED_TEL_INPUTS,
+      speechTimeout='auto',
+      timeout=10
+  ) as gather:
+      gather.say('Enter the number of minutes between checks followed by pound.')
+  return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+@login_required
+def set_check_interval(request: HttpRequest) -> HttpResponse:
+  vr = VoiceResponse()
+
+  digits = request.POST.get('Digits')
+  speech = request.POST.get('SpeechResult')
+
+  print ('%s' % (request.session.session_key), file=sys.stderr)
+  print ('DTMF entered: %s' % digits, file=sys.stderr)
+  print ('SPEECH entered: %s' % speech, file=sys.stderr)
+
+  parsed_time = parse_digits_or_speech(digits, speech)
+  new_interval = int(parsed_time)
+
+  if parsed_time <= 60:
+    vr.say("Invalid time. Time must be at least 60 minutes.")
+    vr.redirect(reverse('start_set_check_interval'))
+
+  request.user.profile.check_interval = int(parsed_time)
+  request.user.profile.save()
+
+  vr.say('Check interval set to %d minutes. You are checked in.' % int(parsed_time))
+  check_in(request.user.profile)
+  vr.pause(1)
+  vr.redirect(reverse('main_menu'))
+  return HttpResponse(str(vr), content_type='text/xml') 
+
+@csrf_exempt
+@login_required
+def finish_recording(request: HttpRequest, vr=None) -> HttpResponse:
+  active_profile = get_profile(request)
+  
+  if not vr:
+    vr = VoiceResponse()
+
+  if request.POST.get('RecordingSid'):
+    active_profile.message_url = request.POST.get('RecordingUrl')
+    active_profile.message_sid = request.POST.get('RecordingSid')
+    active_profile.save()
+    
+    vr.say('recording updated')
+    check_in(request.user.profile)
+  else:
+    vr.say('recording failed, try again')
+  vr.pause(1)
+  vr.redirect(reverse('main_menu'))
+
+  return HttpResponse(str(vr), content_type='text/xml') 
+
+@csrf_exempt
+@login_required
+def record_message(request: HttpRequest, vr=None) -> HttpResponse:
+  # we're either getting called after a bad entry and reusing vr, or we're a
+  # fresh request
+  if not vr:
+    vr = VoiceResponse()
+  
+  vr.say("set your outgoing message now, then press pound")
+  vr.record(max_length="30", 
+            action=reverse('finish_recording'), 
+            finish_on_key='#',
+            play_beep=True)
+
+  return HttpResponse(str(vr), content_type='text/xml') 
 
 @csrf_exempt
 def pin_login(request: HttpRequest) -> HttpResponse:
@@ -121,7 +211,6 @@ def pin_login(request: HttpRequest) -> HttpResponse:
   except ObjectDoesNotExist:
     print ('Pin not found %s' % parsed_pin, file=sys.stderr)
 
-  # TODO: Handle the duress pin
   if not active_profile:
     try:
       duress_profile = Profile.objects.get(duress_code=parsed_pin)
@@ -158,17 +247,49 @@ def pin_login(request: HttpRequest) -> HttpResponse:
   if active_profile.user.first_name:
     vr.say("Authenticated! Hello, %s" % active_profile.user.first_name)
   else:
-    vr.say("Authenticated! Hello, there.")
+    vr.say("Authenticated! Hello there.")
 
   if duress:
-    vr.say('Duress code entered. Starting Emergenchy Procedure')
+    vr.say('Duress code entered. Starting Emergency Procedure')
     set_emergency(active_profile, True)
 
   vr.redirect(reverse('main_menu'))
 
   return HttpResponse(str(vr), content_type='text/xml') 
 
+
 @csrf_exempt
+@login_required
+def ivr_help(request: HttpRequest) -> HttpResponse:
+  vr = VoiceResponse()
+  active_profile = get_profile(request)
+  
+  vr.say('Please choose from the following options')
+
+  vr.say('Press 1 for Check in,') #done
+  vr.say('2 to Set check interval,') #done
+  
+  vr.say('3 to Play current Outgoing Message,')
+  vr.say('4 to Replace Outgoing Message,') 
+
+  vr.say('5 to List and call Emergency Contacts,')
+  vr.say('6 to Add a Contact,')
+  vr.say('7 to Remove a Contact.')
+
+  # 9 emergency
+  # 0 delivery status
+
+  if active_profile and not active_profile.in_emergency:
+    vr.say('9 to Activate Emergency Protocol')
+  else:
+    vr.say('9 to Cancel Emergency Protocol')
+
+  vr.redirect(reverse('main_menu'))
+
+  return HttpResponse(str(vr), content_type='text/xml') 
+
+@csrf_exempt
+@login_required
 def main_menu(request: HttpRequest) -> HttpResponse:
   # this should always return something
   active_profile = get_profile(request)
@@ -177,41 +298,30 @@ def main_menu(request: HttpRequest) -> HttpResponse:
   vr.say('Main Menu')
 
   # status report goes here.
-
-  # if in emergency mode, say something
+  # if in emergency mode, say something about that...
   if active_profile and active_profile.in_emergency:
     vr.say('You are in emergency mode. Press 0 to hear the current delivery status.')
+    # n of m of your contacts have been reached... etc...
     vr.pause(1)
-
-  vr.say('Please choose from the following options')
-  vr.say('Press 1 for Check in')
-  vr.say('2 to list or call Emergency Contacts')
-  vr.say('3 for Add Contact')
-  vr.say('4 for Remove Contact')
-
-  # let us record a message and then send the message to everyone, should ask
-  # for an SMS message and a voice message if we can do both at same time great.
-  if active_profile and not active_profile.in_emergency:
-    vr.say('9 to Activate Emergency Protocol')
   else:
-    vr.say('9 to Cancel Emergency Protocol')
-  
+    vr.say("There is no Emergency right now.")
+
   with vr.gather(
       action=reverse('main_menu_select'),
-      input='dtmf speech',
+      input=ACCEPTED_TEL_INPUTS,
       speechTimeout='auto',
       timeout=10,
       numDigits=1
   ) as gather:
-      gather.say('Choose now')
+      gather.say('Select option or star for help:')
 
   vr.say('I did not receive your selection. Try Again.')
-  vr.pause(1)
   vr.redirect('')
 
   return HttpResponse(str(vr), content_type='text/xml')
 
 @csrf_exempt
+@login_required
 def main_menu_select(request: HttpRequest) -> HttpResponse:
   active_profile = get_profile(request)
   vr = VoiceResponse()
@@ -229,8 +339,6 @@ def main_menu_select(request: HttpRequest) -> HttpResponse:
   valid_opt = False
 
   # handle options
-
-  # checkin
   # list / connect contacts
   # add contacts
   # remove contacts
@@ -240,6 +348,18 @@ def main_menu_select(request: HttpRequest) -> HttpResponse:
     check_in(active_profile)
     date_string = datetime.strftime(timezone.now(),LONG_DATE_FMT)
     vr.say("You have checked in at %s" % date_string)
+
+  if (parsed_choice == "2"):
+    valid_opt = True
+    return start_set_check_interval(request, vr)
+
+  if (parsed_choice == "4"):
+    valid_opt = True
+    return record_message(request, vr)
+
+  if (parsed_choice == "*"):
+    valid_opt = True
+    vr.redirect(reverse('ivr_help'))
 
   if parsed_choice == "9":
     valid_opt = True
@@ -251,7 +371,6 @@ def main_menu_select(request: HttpRequest) -> HttpResponse:
 
   if not valid_opt:
     vr.say("Invalid menu selection.")
-
-  vr.redirect(reverse('main_menu'))
+    vr.redirect(reverse('main_menu'))
 
   return HttpResponse(str(vr), content_type='text/xml') 

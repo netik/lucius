@@ -97,12 +97,19 @@ Going to `https://XXX.ngrok.io/` should get you to the login page if all is work
 
 By default lucius uses a sqlite database. You are welcome to move Django over to use Postgres, MySQL, or any other supported database backend. There's hundreds of tutorials out there for doing so, and this one is decent:  `https://www.enterprisedb.com/postgres-tutorials/how-use-postgresql-django`
 
-
 # Costs
-
 
 # Security
 
 In a production site you should enable `SECURE_SSL_REDIRECT = True` in settings.py and force users to use HTTPS. Enabling this with ngrok creates an infinite 301 redirect loop. 
 
-Unforunately when using ngrok trying to have HTTPS redirects working is very hard right now, I haven't figured this out (yet) and will come up with a solution at some point.
+Unfortunately when using ngrok trying to have HTTPS redirects working is very hard right now, I haven't figured this out (yet) and will come up with a solution at some point.
+# TODO
+
+- User registration w/ proper profile update
+- Account assignment with PIN login / development
+- Add Contact
+- List Contact
+- Remove Contacts
+- Call out / monitor daemon / retry
+- IVR outbound
