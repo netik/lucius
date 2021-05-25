@@ -14,7 +14,7 @@ from django.contrib.auth.decorators import login_required
 
 from twilio.twiml.voice_response import VoiceResponse
 
-from .models import Profile
+from .models import Profile, Contact
 from django.core.exceptions import ObjectDoesNotExist
 
 MAX_BAD_LOGINS=3
@@ -163,6 +163,7 @@ def finish_recording(request: HttpRequest, vr=None) -> HttpResponse:
     
     vr.say('recording updated')
     check_in(request.user.profile)
+    vr.play(url=active_profile.message_url)
   else:
     vr.say('recording failed, try again')
   vr.pause(1)
@@ -250,13 +251,12 @@ def pin_login(request: HttpRequest) -> HttpResponse:
     vr.say("Authenticated! Hello there.")
 
   if duress:
-    vr.say('Duress code entered. Starting Emergency Procedure')
+    vr.say('Duress code entered. Starting Emergency Protocol')
     set_emergency(active_profile, True)
 
   vr.redirect(reverse('main_menu'))
 
   return HttpResponse(str(vr), content_type='text/xml') 
-
 
 @csrf_exempt
 @login_required
@@ -266,18 +266,18 @@ def ivr_help(request: HttpRequest) -> HttpResponse:
   
   vr.say('Please choose from the following options')
 
-  vr.say('Press 1 for Check in,') #done
-  vr.say('2 to Set check interval,') #done
+  vr.say('Press 1 for Check in,')
+  vr.say('2 to Set check interval,')
   
   vr.say('3 to Play current Outgoing Message,')
   vr.say('4 to Replace Outgoing Message,') 
 
-  vr.say('5 to List and call Emergency Contacts,')
-  vr.say('6 to Add a Contact,')
-  vr.say('7 to Remove a Contact.')
+  vr.say('5 to List Contacts')
+  
+  #vr.say('6 to Add a Contact,')
+  #vr.say('7 to Remove a Contact.')
 
-  # 9 emergency
-  # 0 delivery status
+  vr.say('8 to Call Out.')
 
   if active_profile and not active_profile.in_emergency:
     vr.say('9 to Activate Emergency Protocol')
@@ -285,6 +285,8 @@ def ivr_help(request: HttpRequest) -> HttpResponse:
     vr.say('9 to Cancel Emergency Protocol')
 
   vr.redirect(reverse('main_menu'))
+
+  # 0 delivery status
 
   return HttpResponse(str(vr), content_type='text/xml') 
 
@@ -322,6 +324,104 @@ def main_menu(request: HttpRequest) -> HttpResponse:
 
 @csrf_exempt
 @login_required
+def play_message(request: HttpRequest) -> HttpResponse:
+  active_profile = get_profile(request)
+  vr = VoiceResponse()
+  vr.say('current message')
+  vr.play(url=active_profile.message_url)
+  vr.redirect(reverse('main_menu'))
+  return HttpResponse(str(vr), content_type='text/xml')
+
+# contacts ----------------------------
+@csrf_exempt
+@login_required
+def list_contacts (request: HttpRequest) -> HttpResponse:
+  active_profile = get_profile(request)
+  vr = VoiceResponse()
+
+  contacts = Contact.objects.filter(owner_id=request.user.id)
+  
+  if contacts:
+    i = 0
+    for contact in contacts:
+      i = i + 1
+      vr.say("%d. Name: %s %s - SMS: %s - EMERGENCY: %s" % (
+        i, 
+        contact.name, 
+        contact.phone,
+        {True: 'Yes', False: 'No'}[contact.sms_capable],
+        {True: 'Yes', False: 'No'}[contact.emergency_contact],
+        )
+      )
+      vr.pause(1)
+      vr.say('end of contact list')
+      vr.redirect(reverse('main_menu'))
+  else:
+    vr.say('no contacts')
+
+  return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+@login_required
+def delivery_status(request: HttpRequest) -> HttpResponse:
+  active_profile = get_profile(request)
+  vr = VoiceResponse()
+
+  contacts = Contact.objects.filter(owner_id=request.user.id)
+  
+  if contacts:
+    i = 0
+    for contact in contacts:
+      i = i + 1
+      vr.say("%d. Name: %s %s - last ack %s " % (
+        i, 
+        contact.name, 
+        contact.phone,
+        contact.last_ack or 'Never'
+        )
+      )
+      vr.pause(1)
+      vr.say('end of contact list')
+      vr.redirect(reverse('main_menu'))
+  else:
+    vr.say('no contacts')
+
+  return HttpResponse(str(vr), content_type='text/xml')
+# END contacts ------------------------
+
+@csrf_exempt
+@login_required
+def make_call(request: HttpRequest) -> HttpResponse:
+  vr = VoiceResponse()
+  # get all contacts
+  # look up number
+  # return connect string
+  vr.say('not yet')
+  return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+@login_required
+def select_call_contact(request: HttpRequest) -> HttpResponse:
+  active_profile = get_profile(request)
+  vr = VoiceResponse()
+
+  # A pin by itself is just insecure
+  with vr.gather(
+      action=reverse('make_call'),
+      input=ACCEPTED_TEL_INPUTS,
+      speechTimeout='auto',
+      timeout=10,
+  ) as gather:
+      gather.say('Enter the contact number, then press pound.')
+
+  vr.say('I did not receive your selection. Try Again.')
+  vr.pause(1)
+  vr.redirect('')
+
+  return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+@login_required
 def main_menu_select(request: HttpRequest) -> HttpResponse:
   active_profile = get_profile(request)
   vr = VoiceResponse()
@@ -335,13 +435,8 @@ def main_menu_select(request: HttpRequest) -> HttpResponse:
 
   parsed_choice = parse_digits_or_speech(digits, speech)
 
-  # menu options
-  valid_opt = False
-
   # handle options
-  # list / connect contacts
-  # add contacts
-  # remove contacts
+  valid_opt = False
 
   if (parsed_choice == "1"):
     valid_opt = True
@@ -353,13 +448,30 @@ def main_menu_select(request: HttpRequest) -> HttpResponse:
     valid_opt = True
     return start_set_check_interval(request, vr)
 
+  if (parsed_choice == "3"):
+    valid_opt = True
+    vr.redirect(reverse('play_message'))
+
   if (parsed_choice == "4"):
     valid_opt = True
     return record_message(request, vr)
 
-  if (parsed_choice == "*"):
+  # 5 - list contacts
+  if (parsed_choice == "5"):
     valid_opt = True
-    vr.redirect(reverse('ivr_help'))
+    vr.redirect(reverse('list_contacts'))
+
+# these are annoying, but, we can do it later.
+#  if (parsed_choice == "6"):
+#    valid_opt = True
+#    vr.redirect(reverse('start_add_contact'))
+#  if (parsed_choice == "7"):
+#    valid_opt = True
+#    vr.redirect(reverse('start_delete_contact'))
+
+  if (parsed_choice == "8"):
+    valid_opt = True
+    vr.redirect(reverse('select_call_contact'))
 
   if parsed_choice == "9":
     valid_opt = True
@@ -368,6 +480,19 @@ def main_menu_select(request: HttpRequest) -> HttpResponse:
       vr.say('Emergency Protocol is now On.')
     else:
       vr.say('Emergency Protocol is now Off.')
+
+  if (parsed_choice == "0"):
+    valid_opt = True
+    vr.redirect(reverse('delivery_status'))
+
+  if (parsed_choice == "*"):
+    valid_opt = True
+    vr.redirect(reverse('ivr_help'))
+
+  if parsed_choice == '#':
+    valid_opt = True
+    vr.say('Goodbye.')
+    vr.hangup()
 
   if not valid_opt:
     vr.say("Invalid menu selection.")
